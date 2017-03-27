@@ -62,6 +62,7 @@ int main()
 	app.terminate();
 	return EXIT_SUCCESS;
 
+	/*
     // Create an SDL window that supports Vulkan and OpenGL rendering.
     if(SDL_Init(SDL_INIT_VIDEO) != 0) {
         std::cout << "Could not initialize SDL." << std::endl;
@@ -115,4 +116,5 @@ int main()
     instance.destroy();
 
     return 0;
+	*/
 }

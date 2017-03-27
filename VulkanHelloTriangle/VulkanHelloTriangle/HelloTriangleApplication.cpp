@@ -65,6 +65,7 @@ void HelloTriangleApplication::selectPhysicalDevice() {
 	// enumerate physical devices (GPUs)
 	std::vector<vk::PhysicalDevice> gpuList = instance.enumeratePhysicalDevices();
 	
+	bool found = false;
 	for (const auto& device : gpuList) {
 		if (isDeviceSuitable(device)) {
 			gpu = device;
@@ -72,7 +73,7 @@ void HelloTriangleApplication::selectPhysicalDevice() {
 		}
 	}
 
-	if (gpu == VK_NULL_HANDLE) {
+	if (!found) {
 		std::cout << "Failed to find a suitable GPU!" << std::endl;
 		assert(0 && "Vulkan runtime error.");
 	}
@@ -85,29 +86,17 @@ bool HelloTriangleApplication::isDeviceSuitable(vk::PhysicalDevice device) {
 	queueProps = device.getQueueFamilyProperties();
 	if (queueProps.size() < 1) return false;
 
-	return true;
-}
-
-void HelloTriangleApplication::createLogicalDevice() {
-	queueProps = gpu.getQueueFamilyProperties();
-	if (queueProps.size() < 1) {
-		std::cout << "Failed to find queue family properties" << std::endl;
-		assert(0 && "Vulkan runtime error.");
-	}
-
-	bool found = false;
 	for (unsigned int i = 0; i < queueProps.size(); i++) {
 		if (queueProps[i].queueFlags & vk::QueueFlagBits::eGraphics) {
 			queueFamilyIndex = i;
-			found = true;
-			break;
+			return true;
 		}
 	}
 
-	if (!found) {
-		std::cout << "Your device does not support Graphics queue family " << std::endl;
-		assert(0 && "Vulkan runtime error.");
-	}
+	return false;
+}
+
+void HelloTriangleApplication::createLogicalDevice() {
 
 	float queue_priorities[1] = { 0.0 };
 	queueInfo = vk::DeviceQueueCreateInfo()
@@ -206,6 +195,7 @@ std::vector<const char*> HelloTriangleApplication::getAvailableWSIExtensions()
 	extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
 #endif
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
+	assert(0);
 	extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #endif
 #if defined(VK_USE_PLATFORM_XLIB_KHR)

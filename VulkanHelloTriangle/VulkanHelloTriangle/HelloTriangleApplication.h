@@ -30,14 +30,17 @@ private:
 public:
 
 private:
-	vk::Instance instance = VK_NULL_HANDLE;
+	vk::SurfaceKHR surface;
+	SDL_Window* window;
+
+	vk::Instance instance;
 	std::vector<const char*> extensions;
 	std::vector<const char*> layers;
 
 	vk::ApplicationInfo appInfo;
 	vk::InstanceCreateInfo instInfo;
 
-	vk::PhysicalDevice gpu = VK_NULL_HANDLE;
+	vk::PhysicalDevice gpu;
 	vk::PhysicalDeviceProperties gpuProps = {};
 	vk::PhysicalDeviceFeatures gpuFeatures = {};
 	vk::PhysicalDeviceMemoryProperties gpuMemoryProps = {};
@@ -47,9 +50,6 @@ private:
 	uint32_t queueFamilyIndex;
 	vk::DeviceCreateInfo deviceInfo;
 	vk::Device device;
-
-	vk::SurfaceKHR surface;
-	SDL_Window* window;
 
 	vk::SurfaceKHR createVulkanSurface(const vk::Instance& instance, SDL_Window* window);
 	std::vector<const char*> getAvailableWSIExtensions();
