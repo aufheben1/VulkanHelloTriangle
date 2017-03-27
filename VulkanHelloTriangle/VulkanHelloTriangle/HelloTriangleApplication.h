@@ -39,7 +39,11 @@ private:
 
 	vk::PhysicalDevice gpu = VK_NULL_HANDLE;
 	vk::PhysicalDeviceProperties gpuProps = {};
+	vk::PhysicalDeviceFeatures gpuFeatures = {};
 	vk::PhysicalDeviceMemoryProperties gpuMemoryProps = {};
+	std::vector<vk::QueueFamilyProperties> queueProps;
+
+	vk::DeviceQueueCreateInfo queueInfo = {};
 
 	vk::SurfaceKHR surface;
 	SDL_Window* window;

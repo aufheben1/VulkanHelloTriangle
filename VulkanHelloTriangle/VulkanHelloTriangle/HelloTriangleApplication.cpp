@@ -63,38 +63,37 @@ void HelloTriangleApplication::createInstance() {
 
 void HelloTriangleApplication::selectPhysicalDevice() {
 	// enumerate physical devices (GPUs)
-	uint32_t gpuCount = 0;
-	instance.enumeratePhysicalDevices(&gpuCount, nullptr);
-	std::vector<vk::PhysicalDevice> gpuList(gpuCount);
-	instance.enumeratePhysicalDevices(&gpuCount, gpuList.data());
-
-	for (const auto& device : gpuList) {
+	std::vector<vk::PhysicalDevice> gpuList = instance.enumeratePhysicalDevices();
 	
+	for (const auto& device : gpuList) {
 		if (isDeviceSuitable(device)) {
 			gpu = device;
-			gpuMemoryProps = gpu.getMemoryProperties();
-			gpuProps = gpu.getProperties();
 			break;
 		}
 	}
+
+	if (gpu == VK_NULL_HANDLE) {
+		std::cout << "Failed to find a suitable GPU!" << std::endl;
+		assert(0 && "Vulkan runtime error.");
+	}
+
+	gpuMemoryProps = gpu.getMemoryProperties();
+	gpuProps = gpu.getProperties();
 }
 
 bool HelloTriangleApplication::isDeviceSuitable(vk::PhysicalDevice device) {
-	queueFamilyProps = device.getQueueFamilyProperties();
-	device.getQueueFamilyProperties(&queueFamilyCount, nullptr);
-	if (queueFamilyCount < 1) return false;
-
-	/*
-	std::vector<vk::QueueFamilyProperties> queueFamilyProps(queueFamilyCount);
-	device.getQueueFamilyProperties(&queueFamilyCount, queueFamilyProps.data());
-	*/
-
+	queueProps = device.getQueueFamilyProperties();
+	if (queueProps.size() < 1) return false;
 
 	return true;
 }
 
 void HelloTriangleApplication::createLogicalDevice() {
-
+	queueProps = gpu.getQueueFamilyProperties();
+	if (queueProps.size() < 1) {
+		std::cout << "Failed to find queue family properties" << std::endl;
+		assert(0 && "Vulkan runtime error.");
+	}
 }
 
 void HelloTriangleApplication::destroyInstance() {
