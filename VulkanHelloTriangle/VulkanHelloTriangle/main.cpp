@@ -42,11 +42,24 @@ Create and destroy a Vulkan surface on an SDL window.
 #include <iostream>
 #include <vector>
 
+#include "HelloTriangleApplication.h"
+
 vk::SurfaceKHR createVulkanSurface(const vk::Instance& instance, SDL_Window* window);
 std::vector<const char*> getAvailableWSIExtensions();
 
 int main()
 {
+	HelloTriangleApplication app;
+
+	try {
+		app.run();
+	}
+	catch (const std::runtime_error& e) {
+		std::cerr << e.what() << std::endl;
+		return EXIT_FAILURE;
+	}
+
+	return EXIT_SUCCESS;
     // Use validation layers if this is a debug build, and use WSI extensions regardless
     std::vector<const char*> extensions = getAvailableWSIExtensions();
     std::vector<const char*> layers;
