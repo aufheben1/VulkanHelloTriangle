@@ -94,6 +94,37 @@ void HelloTriangleApplication::createLogicalDevice() {
 		std::cout << "Failed to find queue family properties" << std::endl;
 		assert(0 && "Vulkan runtime error.");
 	}
+
+	bool found = false;
+	for (unsigned int i = 0; i < queueProps.size(); i++) {
+		if (queueProps[i].queueFlags & vk::QueueFlagBits::eGraphics) {
+			queueFamilyIndex = i;
+			found = true;
+			break;
+		}
+	}
+
+	if (!found) {
+		std::cout << "Your device does not support Graphics queue family " << std::endl;
+		assert(0 && "Vulkan runtime error.");
+	}
+
+	float queue_priorities[1] = { 0.0 };
+	queueInfo = vk::DeviceQueueCreateInfo()
+		.setQueueCount(1)
+		.setPQueuePriorities(queue_priorities);
+
+	deviceInfo = vk::DeviceCreateInfo()
+		.setQueueCreateInfoCount(1)
+		.setPQueueCreateInfos(&queueInfo);
+
+	try {
+		device = gpu.createDevice(deviceInfo);
+	}
+	catch (const std::exception& e) {
+		std::cout << "Could not create a logical device: " << e.what() << std::endl;
+		assert(0 && "Vulkan runtime error.");
+	}
 }
 
 void HelloTriangleApplication::destroyInstance() {

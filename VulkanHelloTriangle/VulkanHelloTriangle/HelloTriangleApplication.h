@@ -43,7 +43,10 @@ private:
 	vk::PhysicalDeviceMemoryProperties gpuMemoryProps = {};
 	std::vector<vk::QueueFamilyProperties> queueProps;
 
-	vk::DeviceQueueCreateInfo queueInfo = {};
+	vk::DeviceQueueCreateInfo queueInfo;
+	uint32_t queueFamilyIndex;
+	vk::DeviceCreateInfo deviceInfo;
+	vk::Device device;
 
 	vk::SurfaceKHR surface;
 	SDL_Window* window;
