@@ -22,15 +22,6 @@ Vulkan C++ Windowed Project Template
 Create and destroy a Vulkan surface on an SDL window.
 */
 
-// Enable the WSI extensions
-#if defined(__ANDROID__)
-#define VK_USE_PLATFORM_ANDROID_KHR
-#elif defined(__linux__)
-#define VK_USE_PLATFORM_XLIB_KHR
-#elif defined(_WIN32)
-#define VK_USE_PLATFORM_WIN32_KHR
-#endif
-
 // Tell SDL not to mess with main()
 #define SDL_MAIN_HANDLED
 
@@ -43,9 +34,6 @@ Create and destroy a Vulkan surface on an SDL window.
 #include <vector>
 
 #include "HelloTriangleApplication.h"
-
-vk::SurfaceKHR createVulkanSurface(const vk::Instance& instance, SDL_Window* window);
-std::vector<const char*> getAvailableWSIExtensions();
 
 int main()
 {

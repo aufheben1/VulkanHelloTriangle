@@ -195,7 +195,6 @@ std::vector<const char*> HelloTriangleApplication::getAvailableWSIExtensions()
 	extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
 #endif
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
-	assert(0);
 	extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #endif
 #if defined(VK_USE_PLATFORM_XLIB_KHR)

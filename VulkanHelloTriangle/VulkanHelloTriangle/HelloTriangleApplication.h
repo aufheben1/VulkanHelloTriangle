@@ -1,6 +1,15 @@
 #ifndef _VULKAN_HELLO_TRIANGLE_APPLICATION_H_
 #define _VULKAN_HELLO_TRIANGLE_APPLICATION_H_
 
+// Enable the WSI extensions
+#if defined(__ANDROID__)
+#define VK_USE_PLATFORM_ANDROID_KHR
+#elif defined(__linux__)
+#define VK_USE_PLATFORM_XLIB_KHR
+#elif defined(_WIN32)
+#define VK_USE_PLATFORM_WIN32_KHR
+#endif
+
 #include <glm/glm.hpp>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
@@ -18,6 +27,7 @@ private:
 	void initVulkan();
 	void mainLoop();
 	
+	std::vector<const char*> getAvailableWSIExtensions();
 	void createInstance();
 	void selectPhysicalDevice();
 	bool isDeviceSuitable(vk::PhysicalDevice device);
@@ -52,7 +62,7 @@ private:
 	vk::Device device;
 
 	vk::SurfaceKHR createVulkanSurface(const vk::Instance& instance, SDL_Window* window);
-	std::vector<const char*> getAvailableWSIExtensions();
+	
 };
 
 
