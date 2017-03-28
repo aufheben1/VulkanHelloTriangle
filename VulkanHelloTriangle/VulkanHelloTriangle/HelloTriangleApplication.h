@@ -27,14 +27,14 @@ private:
 	void initVulkan();
 	void mainLoop();
 	
-	std::vector<const char*> getAvailableWSIExtensions();
+	void getAvailableWSIExtensions();
 	void createInstance();
+	void createSurface();
 	void selectPhysicalDevice();
 	bool isDeviceSuitable(vk::PhysicalDevice device);
 	void createLogicalDevice();
 	
-	
-	
+		
 	void destroyInstance();
 
 public:
@@ -61,8 +61,6 @@ private:
 	vk::DeviceCreateInfo deviceInfo;
 	vk::Device device;
 
-	vk::SurfaceKHR createVulkanSurface(const vk::Instance& instance, SDL_Window* window);
-	
 };
 
 
