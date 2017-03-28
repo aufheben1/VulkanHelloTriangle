@@ -33,7 +33,8 @@ private:
 	void selectPhysicalDevice();
 	bool isDeviceSuitable(vk::PhysicalDevice device);
 	void createLogicalDevice();
-	
+	void createCommandBuffer();
+	void createSwapChain();
 		
 	void destroyInstance();
 
@@ -60,6 +61,11 @@ private:
 	uint32_t queueFamilyIndex;
 	vk::DeviceCreateInfo deviceInfo;
 	vk::Device device;
+
+	vk::CommandPoolCreateInfo cmdPoolInfo;
+	vk::CommandPool cmdPool;
+	vk::CommandBufferAllocateInfo cmdInfo;
+	std::vector<vk::CommandBuffer> cmd;
 
 };
 

@@ -22,6 +22,7 @@ void HelloTriangleApplication::initVulkan() {
 	createSurface();
 	selectPhysicalDevice();
 	createLogicalDevice();
+	createCommandBuffer();
 }
 
 void HelloTriangleApplication::mainLoop() {
@@ -234,6 +235,26 @@ void HelloTriangleApplication::createLogicalDevice() {
 		std::cout << "Could not create a logical device: " << e.what() << std::endl;
 		assert(0 && "Vulkan runtime error.");
 	}
+}
+
+void HelloTriangleApplication::createCommandBuffer() {
+	// Create a command pool to allocate our command buffer from
+	cmdPoolInfo = vk::CommandPoolCreateInfo()
+		.setQueueFamilyIndex(queueFamilyIndex);
+
+	cmdPool = device.createCommandPool(cmdPoolInfo);
+
+	// Create the command buffer from the command pool
+	cmdInfo = vk::CommandBufferAllocateInfo()
+		.setCommandPool(cmdPool)
+		.setLevel(vk::CommandBufferLevel::ePrimary)
+		.setCommandBufferCount(1);
+
+	cmd = device.allocateCommandBuffers(cmdInfo);
+}
+
+void HelloTriangleApplication::createSwapChain() {
+	// Construct the surface description:
 }
 
 void HelloTriangleApplication::destroyInstance() {
