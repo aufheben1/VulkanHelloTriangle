@@ -27,14 +27,16 @@ private:
 	void initVulkan();
 	void mainLoop();
 	
-	void getAvailableWSIExtensions();
+	void addInstanceExtensions();
 	void createInstance();
+
+	void addDeviceExtansions();
 	void createSurface();
 	void selectPhysicalDevice();
 	bool isDeviceSuitable(vk::PhysicalDevice device);
 	void createLogicalDevice();
 	void createCommandBuffer();
-	void createSwapChain();
+	void createSwapchain();
 		
 	void destroyInstance();
 
@@ -45,7 +47,8 @@ private:
 	SDL_Window* window;
 
 	vk::Instance instance;
-	std::vector<const char*> extensions;
+	std::vector<const char*> instanceExtensions;
+	std::vector<const char*> deviceExtensions;
 	std::vector<const char*> layers;
 
 	vk::ApplicationInfo appInfo;
@@ -58,7 +61,8 @@ private:
 	std::vector<vk::QueueFamilyProperties> queueProps;
 
 	vk::DeviceQueueCreateInfo queueInfo;
-	uint32_t queueFamilyIndex;
+	uint32_t graphicsFamilyIndex;
+	uint32_t presentFamilyIndex;
 	vk::DeviceCreateInfo deviceInfo;
 	vk::Device device;
 

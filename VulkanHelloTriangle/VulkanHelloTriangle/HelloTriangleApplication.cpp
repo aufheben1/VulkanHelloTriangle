@@ -16,13 +16,34 @@ void HelloTriangleApplication::terminate() {
 }
 
 void HelloTriangleApplication::initVulkan() {
-	getAvailableWSIExtensions();
-
+	addInstanceExtensions();
 	createInstance();
+
+	addDeviceExtansions();
 	createSurface();
 	selectPhysicalDevice();
 	createLogicalDevice();
+		
+	//createSwapchain();
+	//createImageviews();
+
+	//createRenderPass();
+	//createFramebuffers();
+
 	createCommandBuffer();
+	////createDescriptorSetLayout();
+	//createGraphicsPipeline();
+
+	////createVertexBuffer();
+	////createIndexBuffer();
+
+	////createStagingUniformBuffer();
+	////createUniformBuffer();
+	////createDescriptorPool();
+	////createDescriptorSet();
+
+	//recordCommandBuffers();
+	//createSemaphores();
 }
 
 void HelloTriangleApplication::mainLoop() {
@@ -49,28 +70,28 @@ void HelloTriangleApplication::mainLoop() {
 	}
 }
 
-void HelloTriangleApplication::getAvailableWSIExtensions()
+void HelloTriangleApplication::addInstanceExtensions()
 {
 	// Use validation layers if this is a debug build, and use WSI extensions regardless
 #if defined(_DEBUG)
 	layers.push_back("VK_LAYER_LUNARG_standard_validation");
 #endif
-	extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
 	
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
-	extensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
 #endif
 #if defined(VK_USE_PLATFORM_MIR_KHR)
-	extensions.push_back(VK_KHR_MIR_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_KHR_MIR_SURFACE_EXTENSION_NAME);
 #endif
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR)
-	extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
 #endif
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
-	extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #endif
 #if defined(VK_USE_PLATFORM_XLIB_KHR)
-	extensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
 #endif
 
 }
@@ -90,8 +111,8 @@ void HelloTriangleApplication::createInstance() {
 	instInfo = vk::InstanceCreateInfo()
 		.setFlags(vk::InstanceCreateFlags())
 		.setPApplicationInfo(&appInfo)
-		.setEnabledExtensionCount(static_cast<uint32_t>(extensions.size()))
-		.setPpEnabledExtensionNames(extensions.data())
+		.setEnabledExtensionCount(static_cast<uint32_t>(instanceExtensions.size()))
+		.setPpEnabledExtensionNames(instanceExtensions.data())
 		.setEnabledLayerCount(static_cast<uint32_t>(layers.size()))
 		.setPpEnabledLayerNames(layers.data());
 
@@ -103,6 +124,10 @@ void HelloTriangleApplication::createInstance() {
 		std::cout << "Could not create a Vulkan instance: " << e.what() << std::endl;
 		assert(0 && "Vulkan runtime error.");
 	}
+}
+
+void HelloTriangleApplication::addDeviceExtansions() {
+	deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 }
 
 void HelloTriangleApplication::createSurface() {
@@ -206,10 +231,10 @@ void HelloTriangleApplication::selectPhysicalDevice() {
 bool HelloTriangleApplication::isDeviceSuitable(vk::PhysicalDevice device) {
 	queueProps = device.getQueueFamilyProperties();
 	if (queueProps.size() < 1) return false;
-
+	//Present도 지원하는지 알아야함
 	for (unsigned int i = 0; i < queueProps.size(); i++) {
 		if (queueProps[i].queueFlags & vk::QueueFlagBits::eGraphics) {
-			queueFamilyIndex = i;
+			graphicsFamilyIndex = i;
 			return true;
 		}
 	}
@@ -240,7 +265,7 @@ void HelloTriangleApplication::createLogicalDevice() {
 void HelloTriangleApplication::createCommandBuffer() {
 	// Create a command pool to allocate our command buffer from
 	cmdPoolInfo = vk::CommandPoolCreateInfo()
-		.setQueueFamilyIndex(queueFamilyIndex);
+		.setQueueFamilyIndex(graphicsFamilyIndex);
 
 	cmdPool = device.createCommandPool(cmdPoolInfo);
 
@@ -253,7 +278,7 @@ void HelloTriangleApplication::createCommandBuffer() {
 	cmd = device.allocateCommandBuffers(cmdInfo);
 }
 
-void HelloTriangleApplication::createSwapChain() {
+void HelloTriangleApplication::createSwapchain() {
 	// Construct the surface description:
 }
 
