@@ -43,13 +43,14 @@ private:
 	void addInstanceExtensions();
 	void createInstance();
 
-	void addDeviceExtansions();
+	void addDeviceExtensions();
 	void createSurface();
 	void selectPhysicalDevice();
 	bool isDeviceSuitable(vk::PhysicalDevice device);
 	void createLogicalDevice();
 	void createCommandBuffer();
 	void createSwapchain();
+	void createImvageviews();
 		
 	void destroyInstance();
 

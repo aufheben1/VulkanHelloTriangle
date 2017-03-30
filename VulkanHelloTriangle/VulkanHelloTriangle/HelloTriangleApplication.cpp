@@ -24,7 +24,7 @@ void HelloTriangleApplication::initVulkan() {
 	addInstanceExtensions();
 	createInstance();
 
-	addDeviceExtansions();
+	addDeviceExtensions();
 	createSurface();
 	selectPhysicalDevice();
 	createLogicalDevice();
@@ -131,7 +131,7 @@ void HelloTriangleApplication::createInstance() {
 	}
 }
 
-void HelloTriangleApplication::addDeviceExtansions() {
+void HelloTriangleApplication::addDeviceExtensions() {
 	deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 }
 
@@ -364,7 +364,7 @@ void HelloTriangleApplication::createSwapchain() {
 	vk::PresentModeKHR swapchainPresentMode = vk::PresentModeKHR::eFifo;
 
 	// Determine the number of VkImage's to use in the swap chain.
-	// We need to acquire only 1 presentable image at at time.
+	// We need to acquire only 1 presentable image at a time.
 	// Asking for minImageCount images ensures that we can acquire
 	// 1 presentable image as long as we present it before attempting
 	// to acquire another.
@@ -426,7 +426,9 @@ void HelloTriangleApplication::createSwapchain() {
 	}
 
 	swapchain = device.createSwapchainKHR(swapchainCreateInfo, nullptr);
+}
 
+void HelloTriangleApplication::createImvageviews() {
 	swapchainImages = device.getSwapchainImagesKHR(swapchain);
 	if (swapchainImages.size() < 1) {
 		std::cout << "Failed to find supporting swapchain image" << std::endl;
@@ -456,7 +458,6 @@ void HelloTriangleApplication::createSwapchain() {
 	}
 
 	current_buffer = 0;
-
 }
 
 void HelloTriangleApplication::destroyInstance() {
