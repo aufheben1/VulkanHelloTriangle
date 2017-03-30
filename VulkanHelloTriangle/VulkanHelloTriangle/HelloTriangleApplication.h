@@ -48,9 +48,11 @@ private:
 	void selectPhysicalDevice();
 	bool isDeviceSuitable(vk::PhysicalDevice device);
 	void createLogicalDevice();
+	void createCommandPool();
 	void createCommandBuffer();
 	void createSwapchain();
-	void createImvageviews();
+	void initSwapchainExtension();
+	void createImageviews();
 		
 	void destroyInstance();
 

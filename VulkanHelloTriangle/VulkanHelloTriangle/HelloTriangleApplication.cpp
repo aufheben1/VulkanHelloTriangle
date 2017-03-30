@@ -25,30 +25,32 @@ void HelloTriangleApplication::initVulkan() {
 	createInstance();
 
 	addDeviceExtensions();
-	createSurface();
 	selectPhysicalDevice();
+	createSurface();
+	
+	initSwapchainExtension();
 	createLogicalDevice();
 		
-	createSwapchain();
-	//createImageviews();
-
-	//createRenderPass();
-	//createFramebuffers();
-
+	createCommandPool();
 	createCommandBuffer();
-	////createDescriptorSetLayout();
-	//createGraphicsPipeline();
+	//execute_begin_command_buffer();
+	//init_device_queue();
+	
+	createSwapchain();
+	createImageviews();
 
-	////createVertexBuffer();
-	////createIndexBuffer();
+	//create_depth_buffer();
+	//create_uniform_buffer();
+	//create_descriptor_and_pipeline_layouts();
+	//create_renderpass();
+	//create_shaders();
+	//create_framebuffers();
+	//create_vertex_buffer();
+	//create_descriptor_pool();
+	//create_descriptor_set();
+	//create_pipeline_cache();
+	//create_pipeline();
 
-	////createStagingUniformBuffer();
-	////createUniformBuffer();
-	////createDescriptorPool();
-	////createDescriptorSet();
-
-	//recordCommandBuffers();
-	//createSemaphores();
 }
 
 void HelloTriangleApplication::mainLoop() {
@@ -237,76 +239,54 @@ bool HelloTriangleApplication::isDeviceSuitable(vk::PhysicalDevice device) {
 	queueProps = device.getQueueFamilyProperties();
 	if (queueProps.size() < 1) return false;
 
+	return true;
+	/*
 	for (unsigned int i = 0; i < queueProps.size(); i++) {
 		if (queueProps[i].queueFlags & vk::QueueFlagBits::eGraphics) {
 			graphicsFamilyIndex = i;
 			return true;
 		}
 	}
-
-	return false;
+	*/
 }
 
-void HelloTriangleApplication::createLogicalDevice() {
+void HelloTriangleApplication::initSwapchainExtension() {
+	// Search for a graphics and a present queue in the array of queue
+	// families, try to find one that supports both
+	graphicsFamilyIndex = UINT32_MAX;
+	presentFamilyIndex = UINT32_MAX;
+	for (uint32_t i = 0; i < queueProps.size(); i++) {
+		if (queueProps[i].queueFlags & vk::QueueFlagBits::eGraphics) {
+			if (graphicsFamilyIndex == UINT32_MAX) graphicsFamilyIndex = i;
 
-	float queue_priorities[1] = { 0.0 };
-	queueInfo = vk::DeviceQueueCreateInfo()
-		.setQueueCount(1)
-		.setPQueuePriorities(queue_priorities);
-
-	deviceInfo = vk::DeviceCreateInfo()
-		.setQueueCreateInfoCount(1)
-		.setPQueueCreateInfos(&queueInfo);
-
-	try {
-		device = gpu.createDevice(deviceInfo);
-	}
-	catch (const std::exception& e) {
-		std::cout << "Could not create a logical device: " << e.what() << std::endl;
-		assert(0 && "Vulkan runtime error.");
-	}
-}
-
-void HelloTriangleApplication::createCommandBuffer() {
-	// Create a command pool to allocate our command buffer from
-	cmdPoolInfo = vk::CommandPoolCreateInfo()
-		.setQueueFamilyIndex(graphicsFamilyIndex);
-
-	cmdPool = device.createCommandPool(cmdPoolInfo);
-
-	// Create the command buffer from the command pool
-	cmdInfo = vk::CommandBufferAllocateInfo()
-		.setCommandPool(cmdPool)
-		.setLevel(vk::CommandBufferLevel::ePrimary)
-		.setCommandBufferCount(1);
-
-	cmd = device.allocateCommandBuffers(cmdInfo);
-}
-
-void HelloTriangleApplication::createSwapchain() {
-	// Check our queue supports presenting
-	vk::Bool32 supportPresent = gpu.getSurfaceSupportKHR(graphicsFamilyIndex, surface);
-	bool found = false;
-	if (!supportPresent) {
-		// If not, iterate over each queue to find one support presenting
-		for (int i = 0; i < queueProps.size(); i++) {
-			if (gpu.getSurfaceSupportKHR(i, surface)) {
+			// Check whether queue supports presenting:
+			if (gpu.getSurfaceSupportKHR(i, surface) == VK_TRUE) {
+				graphicsFamilyIndex = i;
 				presentFamilyIndex = i;
-				found = true;
 				break;
 			}
 		}
 	}
-	else {
-		presentFamilyIndex = graphicsFamilyIndex;
-		found = true;
+
+	if (presentFamilyIndex == UINT32_MAX) {
+		// If didn't find a queue that supports both graphics and present, then
+		// find a separate present queue.
+		for (size_t i = 0; i < queueProps.size(); i++) {
+			if (gpu.getSurfaceSupportKHR(i, surface) == VK_TRUE) {
+				presentFamilyIndex = i;
+				break;
+			}
+		}
 	}
 
-	if (!found) {
-		std::cout << "Failed to find a GPU supporting present queue!" << std::endl;
+	// Generate error if could not find queues that support graphics
+	// and present
+	if (graphicsFamilyIndex == UINT32_MAX || presentFamilyIndex == UINT32_MAX) {
+		std::cout << "Could not find a queues for both graphics and present";
 		assert(0 && "Vulkan runtime error.");
 	}
 
+	// Get the list of VkFormats that are supported:
 	// Get available surface format
 	std::vector<vk::SurfaceFormatKHR> surfFormats = gpu.getSurfaceFormatsKHR(surface);
 	if (surfFormats.size() < 1) {
@@ -322,7 +302,52 @@ void HelloTriangleApplication::createSwapchain() {
 	else {
 		format = surfFormats[0].format;
 	}
+}
 
+void HelloTriangleApplication::createLogicalDevice() {
+
+	float queue_priorities[1] = { 0.0 };
+	queueInfo = vk::DeviceQueueCreateInfo()
+		.setQueueCount(1)
+		.setPQueuePriorities(queue_priorities)
+		.setQueueFamilyIndex(graphicsFamilyIndex);
+
+	deviceInfo = vk::DeviceCreateInfo()
+		.setQueueCreateInfoCount(1)
+		.setPQueueCreateInfos(&queueInfo)
+		.setEnabledExtensionCount(deviceExtensions.size())
+		.setPpEnabledExtensionNames(deviceExtensions.size()? deviceExtensions.data() : nullptr)
+		.setPEnabledFeatures(nullptr);
+
+	try {
+		device = gpu.createDevice(deviceInfo);
+	}
+	catch (const std::exception& e) {
+		std::cout << "Could not create a logical device: " << e.what() << std::endl;
+		assert(0 && "Vulkan runtime error.");
+	}
+}
+
+void HelloTriangleApplication::createCommandPool() {
+	// Create a command pool to allocate our command buffer from
+	cmdPoolInfo = vk::CommandPoolCreateInfo()
+		.setQueueFamilyIndex(graphicsFamilyIndex)
+		.setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
+
+	cmdPool = device.createCommandPool(cmdPoolInfo);
+}
+
+void HelloTriangleApplication::createCommandBuffer() {
+	// Create the command buffer from the command pool
+	cmdInfo = vk::CommandBufferAllocateInfo()
+		.setCommandPool(cmdPool)
+		.setLevel(vk::CommandBufferLevel::ePrimary)
+		.setCommandBufferCount(1);
+
+	cmd = device.allocateCommandBuffers(cmdInfo);
+}
+
+void HelloTriangleApplication::createSwapchain() {
 	// Get surface capabilities
 	surfCapabilities = gpu.getSurfaceCapabilitiesKHR(surface);
 
@@ -428,7 +453,7 @@ void HelloTriangleApplication::createSwapchain() {
 	swapchain = device.createSwapchainKHR(swapchainCreateInfo, nullptr);
 }
 
-void HelloTriangleApplication::createImvageviews() {
+void HelloTriangleApplication::createImageviews() {
 	swapchainImages = device.getSwapchainImagesKHR(swapchain);
 	if (swapchainImages.size() < 1) {
 		std::cout << "Failed to find supporting swapchain image" << std::endl;
