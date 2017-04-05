@@ -1,4 +1,40 @@
 #include "HelloTriangleApplication.h"
+#include "glm/glm.hpp"
+#include <glm/gtc/matrix_transform.hpp>
+#include <SPIRV\GlslangToSpv.h>
+
+/* For this sample, we'll start with GLSL so the shader function is plain */
+/* and then use the glslang GLSLtoSPV utility to convert it to SPIR-V for */
+/* the driver.  We do this for clarity rather than using pre-compiled     */
+/* SPIR-V                                                                 */
+
+static const char *vertShaderText =
+"#version 400\n"
+"#extension GL_ARB_separate_shader_objects : enable\n"
+"#extension GL_ARB_shading_language_420pack : enable\n"
+"layout (std140, binding = 0) uniform bufferVals {\n"
+"    mat4 mvp;\n"
+"} myBufferVals;\n"
+"layout (location = 0) in vec4 pos;\n"
+"layout (location = 1) in vec4 inColor;\n"
+"layout (location = 0) out vec4 outColor;\n"
+"out gl_PerVertex { \n"
+"    vec4 gl_Position;\n"
+"};\n"
+"void main() {\n"
+"   outColor = inColor;\n"
+"   gl_Position = myBufferVals.mvp * pos;\n"
+"}\n";
+
+static const char *fragShaderText =
+"#version 400\n"
+"#extension GL_ARB_separate_shader_objects : enable\n"
+"#extension GL_ARB_shading_language_420pack : enable\n"
+"layout (location = 0) in vec4 color;\n"
+"layout (location = 0) out vec4 outColor;\n"
+"void main() {\n"
+"   outColor = color;\n"
+"}\n";
 
 HelloTriangleApplication::HelloTriangleApplication() :
 	width(1280), height(720)
@@ -33,21 +69,23 @@ void HelloTriangleApplication::initVulkan() {
 		
 	createCommandPool();
 	createCommandBuffer();
-	//execute_begin_command_buffer();
-	//init_device_queue();
+	beginCommandBuffer();
+	createDeviceQueue();
 	
 	createSwapchain();
 	createImageviews();
 
-	//create_depth_buffer();
-	//create_uniform_buffer();
-	//create_descriptor_and_pipeline_layouts();
-	//create_renderpass();
-	//create_shaders();
+	//createDepthBuffer();
+	createUniformBuffer();
+	createDescriptorPipelineLayouts(false);
+	//createRenderpass();
+	// 쉐이더 코드 넣어줘야함
+	createShaders(vertShaderText, fragShaderText);
+
 	//create_framebuffers();
 	//create_vertex_buffer();
-	//create_descriptor_pool();
-	//create_descriptor_set();
+	createDescriptorPool(false);
+	createDescriptorSet(false);
 	//create_pipeline_cache();
 	//create_pipeline();
 
@@ -260,6 +298,7 @@ void HelloTriangleApplication::initSwapchainExtension() {
 			if (graphicsFamilyIndex == UINT32_MAX) graphicsFamilyIndex = i;
 
 			// Check whether queue supports presenting:
+			bool a = gpu.getSurfaceSupportKHR(i, surface);
 			if (gpu.getSurfaceSupportKHR(i, surface) == VK_TRUE) {
 				graphicsFamilyIndex = i;
 				presentFamilyIndex = i;
@@ -347,11 +386,32 @@ void HelloTriangleApplication::createCommandBuffer() {
 	cmd = device.allocateCommandBuffers(cmdInfo);
 }
 
+void HelloTriangleApplication::beginCommandBuffer() {
+	cmdBufInfo = vk::CommandBufferBeginInfo()
+		.setPInheritanceInfo(nullptr);
+
+	// Depends on number of CommandBuffer created
+	cmd[0].begin(cmdBufInfo);
+}
+
+void HelloTriangleApplication::createDeviceQueue() {
+	// create 하는게 아니라 get함. device 만들때 이미 만들어짐
+	// Depends on createSwapchainExtension
+	graphicsQueue = device.getQueue(graphicsFamilyIndex, 0);
+
+	if (graphicsFamilyIndex == presentFamilyIndex) {
+		presentQueue = graphicsQueue;
+	}
+	else {
+		presentQueue = device.getQueue(presentFamilyIndex, 0);
+	}
+}
+
 void HelloTriangleApplication::createSwapchain() {
 	// Get surface capabilities
 	surfCapabilities = gpu.getSurfaceCapabilitiesKHR(surface);
 
-	// ???
+	// Present mode
 	std::vector<vk::PresentModeKHR> presentModes = gpu.getSurfacePresentModesKHR(surface);
 	if (presentModes.size() < 1) {
 		std::cout << "Failed to find supporting present mode" << std::endl;
@@ -394,7 +454,7 @@ void HelloTriangleApplication::createSwapchain() {
 	// 1 presentable image as long as we present it before attempting
 	// to acquire another.
 	uint32_t desiredNumberOfSwapChainImages = surfCapabilities.minImageCount;
-
+	
 	vk::SurfaceTransformFlagBitsKHR preTransform;
 	if (surfCapabilities.supportedTransforms & vk::SurfaceTransformFlagBitsKHR::eIdentity) {
 		preTransform = vk::SurfaceTransformFlagBitsKHR::eIdentity;
@@ -422,7 +482,6 @@ void HelloTriangleApplication::createSwapchain() {
 		.setSurface(surface)
 		.setImageFormat(format)
 		.setMinImageCount(desiredNumberOfSwapChainImages)
-		.setImageExtent(swapchainExtent)	//width, height 따로 해야하나?
 		.setPreTransform(preTransform)
 		.setCompositeAlpha(compositeAlpha)
 		.setImageArrayLayers(1)
@@ -438,6 +497,8 @@ void HelloTriangleApplication::createSwapchain() {
 		.setImageSharingMode(vk::SharingMode::eExclusive)
 		.setQueueFamilyIndexCount(0)
 		.setPQueueFamilyIndices(nullptr);
+	swapchainCreateInfo.imageExtent.width = swapchainExtent.width;
+	swapchainCreateInfo.imageExtent.height = swapchainExtent.height;
 
 	if (graphicsFamilyIndex != presentFamilyIndex) {
 		// If the graphics and present queues are from different queue families,
@@ -450,7 +511,7 @@ void HelloTriangleApplication::createSwapchain() {
 			.setPQueueFamilyIndices(temp);
 	}
 
-	swapchain = device.createSwapchainKHR(swapchainCreateInfo, nullptr);
+	swapchain = device.createSwapchainKHR(swapchainCreateInfo);
 }
 
 void HelloTriangleApplication::createImageviews() {
@@ -485,8 +546,461 @@ void HelloTriangleApplication::createImageviews() {
 	current_buffer = 0;
 }
 
-void HelloTriangleApplication::destroyInstance() {
+void HelloTriangleApplication::createDepthBuffer() {
+	vk::ImageCreateInfo imageInfo;
+	if (depth.format <= vk::Format::eUndefined) depth.format = vk::Format::eD16Unorm;
+
+#ifdef __ANDROID__
+	// Depth format needs to be VK_FORMAT_D24_UNORM_S8_UINT on Android.
+	const vk::Format depthFormat = vk::Format::eD24UnormS8Uint;
+#else
+	const vk::Format depthFormat = depth.format;
+#endif
+	vk::FormatProperties props;
+	props = gpu.getFormatProperties(depthFormat);
+	if (props.linearTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment) {
+		imageInfo.setTiling(vk::ImageTiling::eLinear);
+	}
+	else if (props.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment) {
+		imageInfo.setTiling(vk::ImageTiling::eOptimal);
+	}
+	else {
+		/* Try other depth formats? */
+		std::cout << "depth_format Unsupported.\n";
+		assert(0 && "Vulkan runtime error.");
+	}
+
+	imageInfo.setImageType(vk::ImageType::e2D)
+		.setFormat(depthFormat)
+		.setMipLevels(1)
+		.setArrayLayers(1)
+		.setSamples(vk::SampleCountFlagBits::e1)
+		.setInitialLayout(vk::ImageLayout::eUndefined)
+		.setQueueFamilyIndexCount(0)
+		.setPQueueFamilyIndices(nullptr)
+		.setSharingMode(vk::SharingMode::eExclusive)
+		.setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment);
+	imageInfo.extent
+		.setWidth(width)
+		.setHeight(height);
+		
+	vk::MemoryAllocateInfo memAlloc = vk::MemoryAllocateInfo()
+		.setAllocationSize(0)
+		.setMemoryTypeIndex(0);
+
+	vk::ImageViewCreateInfo viewInfo = vk::ImageViewCreateInfo()
+		.setImage(nullptr)
+		.setFormat(depthFormat)
+		.setViewType(vk::ImageViewType::e2D);
+	viewInfo.components
+		.setR(vk::ComponentSwizzle::eR)
+		.setG(vk::ComponentSwizzle::eG)
+		.setB(vk::ComponentSwizzle::eB)
+		.setA(vk::ComponentSwizzle::eA);
+	viewInfo.subresourceRange
+		.setAspectMask(vk::ImageAspectFlagBits::eDepth)
+		.setBaseMipLevel(0)
+		.setLevelCount(1)
+		.setBaseArrayLayer(0)
+		.setLayerCount(1);
+
+	if (depthFormat == vk::Format::eD16UnormS8Uint || depthFormat == vk::Format::eD24UnormS8Uint ||
+		depthFormat == vk::Format::eD32SfloatS8Uint) {
+		viewInfo.subresourceRange.aspectMask |= vk::ImageAspectFlagBits::eStencil;
+	}
+
+	vk::MemoryRequirements memReqs;
+
+	// Create image
+	depth.image = device.createImage(imageInfo);	//여기서 에러남. why?
+
+	memReqs = device.getImageMemoryRequirements(depth.image);
+
+	memAlloc.setAllocationSize(memReqs.size);
+
+	// Use the memory properties to determine the type of memory required
+	memAlloc.setMemoryTypeIndex(
+		getMemoryTypeFromProperties(memReqs.memoryTypeBits, 
+			vk::MemoryPropertyFlagBits::eDeviceLocal)
+	);
+
+	// Allocate memory
+	depth.mem = device.allocateMemory(memAlloc);
+
+	// Bind memory
+	device.bindImageMemory(depth.image, depth.mem, 0);
+
+	// Create image view
+	viewInfo.setImage(depth.image);
+	depth.view = device.createImageView(viewInfo);
+}
+
+uint32_t HelloTriangleApplication::getMemoryTypeFromProperties(uint32_t typeBits, vk::MemoryPropertyFlags reqMask) {
+	// Search memtypes to find first index with those properties
+	for (uint32_t i = 0; i < gpuMemoryProps.memoryTypeCount; i++) {
+		if ((typeBits & 1) == 1) {
+			// Type is available, does it match user properties?
+			if ((gpuMemoryProps.memoryTypes[i].propertyFlags & reqMask) == reqMask) {
+				return i;
+			}
+		}
+	}
+	std::cout << "cannot find memory supporting properties\n";
+	assert(0 && "Vulkan runtime error.");
+	return UINT32_MAX;
+}
+
+void HelloTriangleApplication::createUniformBuffer() {
+	float fov = glm::radians(45.0f);
+	if (width > height) {
+		fov *= static_cast<float>(height) / static_cast<float>(width);
+	}
+	Projection = glm::perspective(fov, (float)width / (float)height, 0.1f, 100.0f);
+	View = glm::lookAt(glm::vec3(-5, 3, -10),  // Camera is at (-5,3,-10), in World Space
+					   glm::vec3(0, 0, 0),     // and looks at the origin
+					   glm::vec3(0, -1, 0)     // Head is up (set to 0,-1,0 to look upside-down)
+					   );
+	Model = glm::mat4(1.0f);
+	// Vulkan clip space has inverted Y and half Z.
+	Clip = glm::mat4(1.0f, 0.0f, 0.0f, 0.0f, 
+					0.0f, -1.0f, 0.0f, 0.0f, 
+					0.0f, 0.0f, 0.5f, 0.0f, 
+					0.0f, 0.0f, 0.5f, 1.0f);
+	MVP = Clip * Projection * View * Model;
+
+	vk::BufferCreateInfo bufInfo = vk::BufferCreateInfo()
+		.setUsage(vk::BufferUsageFlagBits::eUniformBuffer)
+		.setSize(sizeof(MVP))
+		.setQueueFamilyIndexCount(0)
+		.setPQueueFamilyIndices(nullptr)
+		.setSharingMode(vk::SharingMode::eExclusive);
+
+	uniform_data.buf = device.createBuffer(bufInfo);
+
+	vk::MemoryRequirements memReqs;
+	memReqs = device.getBufferMemoryRequirements(uniform_data.buf);
+
+	vk::MemoryAllocateInfo allocInfo = vk::MemoryAllocateInfo()
+		.setMemoryTypeIndex(0)
+		.setAllocationSize(memReqs.size);
+
+	allocInfo.memoryTypeIndex = getMemoryTypeFromProperties(memReqs.memoryTypeBits, (vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
+
+	uniform_data.mem = device.allocateMemory(allocInfo);
+
+	uint8_t *pData;
+	// c++ style로 바꿔야함...
+	//pData = device.mapMemory(uniform_data.mem, 0, memReqs.size);
+	device.mapMemory(uniform_data.mem, 0, memReqs.size, vk::MemoryMapFlags(), (void **)&pData);
+
+	memcpy(pData, &MVP, sizeof(MVP));
+
+	device.unmapMemory(uniform_data.mem);
+
+	device.bindBufferMemory(uniform_data.buf, uniform_data.mem, 0);
+
+	uniform_data.buffer_info.buffer = uniform_data.buf;
+	uniform_data.buffer_info.offset = 0;
+	uniform_data.buffer_info.range = sizeof(MVP);
+}
+
+void HelloTriangleApplication::createDescriptorPipelineLayouts(bool useTexture) {
+	vk::DescriptorSetLayoutBinding layoutBindings[2];
+	layoutBindings[0]
+		.setBinding(0)
+		.setDescriptorType(vk::DescriptorType::eUniformBuffer)
+		.setDescriptorCount(1)
+		.setStageFlags(vk::ShaderStageFlagBits::eVertex)
+		.setPImmutableSamplers(nullptr);
+
+	if (useTexture) {
+		// using textures
+		layoutBindings[1]
+			.setBinding(1)
+			.setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+			.setDescriptorCount(1)
+			.setStageFlags(vk::ShaderStageFlagBits::eFragment)
+			.setPImmutableSamplers(nullptr);
+	}
+
+	// Next take layout bindings and use them to create a descriptor set layout
+	vk::DescriptorSetLayoutCreateInfo  descriptorLayout = vk::DescriptorSetLayoutCreateInfo()
+		.setBindingCount(useTexture ? 2 : 1)
+		.setPBindings(layoutBindings);
+
+	//descLayout.resize(1);
+	descLayout.push_back(device.createDescriptorSetLayout(descriptorLayout));
+	//descLayout = device.createDescriptorSetLayout(descriptorLayout);
+	
+	// Now use the descriptor layout to create a pipeline layout
+	vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo = vk::PipelineLayoutCreateInfo()
+		.setPushConstantRangeCount(0)
+		.setPPushConstantRanges(nullptr)
+		.setSetLayoutCount(1)
+		.setPSetLayouts(descLayout.data());
+
+	pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
+}
+
+void HelloTriangleApplication::createShaders(const char *vertShaderText, const char *fragShaderText) {
+	if (!(vertShaderText || fragShaderText)) return;
+
+#ifndef __ANDROID__
+	glslang::InitializeProcess();
+#endif
+	vk::ShaderModuleCreateInfo moduleCreateInfo;
+
+	if (vertShaderText) {
+		std::vector<unsigned int> vtx_spv;
+		shaderStages[0]
+			.setPSpecializationInfo(nullptr)
+			.setStage(vk::ShaderStageFlagBits::eVertex)
+			.setPName("main");
+
+		bool res = GLSLtoSPV(vk::ShaderStageFlagBits::eVertex, vertShaderText, vtx_spv);
+		assert(res);
+
+		moduleCreateInfo
+			.setCodeSize(vtx_spv.size() * sizeof(unsigned int))
+			.setPCode(vtx_spv.data());
+
+		shaderStages[0].module = device.createShaderModule(moduleCreateInfo);
+	}
+
+	if (fragShaderText) {
+		std::vector<unsigned int> frag_spv;
+		shaderStages[1]
+			.setStage(vk::ShaderStageFlagBits::eFragment)
+			.setPName("main");
+
+		bool res = GLSLtoSPV(vk::ShaderStageFlagBits::eFragment, fragShaderText, frag_spv);
+		assert(res);
+
+		moduleCreateInfo
+			.setCodeSize(frag_spv.size() * sizeof(unsigned int))
+			.setPCode(frag_spv.data());
+
+		shaderStages[1].module = device.createShaderModule(moduleCreateInfo);
+	}
+
+#ifndef __ANDROID__
+	glslang::FinalizeProcess();
+#endif
+}
+
+bool HelloTriangleApplication::GLSLtoSPV(const vk::ShaderStageFlagBits shaderType, const char *pshader, std::vector<unsigned int> &spirv) {
+	EShLanguage stage = FindLanguage(shaderType);
+	glslang::TShader shader(stage);
+	glslang::TProgram program;
+	const char *shaderStrings[1];
+	TBuiltInResource Resources;
+	init_resources(Resources);
+
+	// Enable SPIR-V and Vulkan rules when parsing GLSL
+	EShMessages messages = (EShMessages)(EShMsgSpvRules | EShMsgVulkanRules);
+
+	shaderStrings[0] = pshader;
+	shader.setStrings(shaderStrings, 1);
+
+	if (!shader.parse(&Resources, 100, false, messages)) {
+		puts(shader.getInfoLog());
+		puts(shader.getInfoDebugLog());
+		return false;  // something didn't work
+	}
+
+	program.addShader(&shader);
+
+	//
+	// Program-level processing...
+	//
+
+	if (!program.link(messages)) {
+		puts(shader.getInfoLog());
+		puts(shader.getInfoDebugLog());
+		fflush(stdout);
+		return false;
+	}
+
+	glslang::GlslangToSpv(*program.getIntermediate(stage), spirv);
+
+	return true;
+}
+
+EShLanguage HelloTriangleApplication::FindLanguage(const vk::ShaderStageFlagBits shaderType) {
+	switch (shaderType) {
+	case vk::ShaderStageFlagBits::eVertex:
+		return EShLangVertex;
+	case vk::ShaderStageFlagBits::eTessellationControl:
+		return EShLangTessControl;
+
+	case vk::ShaderStageFlagBits::eTessellationEvaluation:
+		return EShLangTessEvaluation;
+
+	case vk::ShaderStageFlagBits::eGeometry:
+		return EShLangGeometry;
+
+	case vk::ShaderStageFlagBits::eFragment:
+		return EShLangFragment;
+
+	case vk::ShaderStageFlagBits::eCompute:
+		return EShLangCompute;
+
+	default:
+		return EShLangVertex;
+	}
+}
+
+void HelloTriangleApplication::init_resources(TBuiltInResource &Resources) {
+	Resources.maxLights = 32;
+	Resources.maxClipPlanes = 6;
+	Resources.maxTextureUnits = 32;
+	Resources.maxTextureCoords = 32;
+	Resources.maxVertexAttribs = 64;
+	Resources.maxVertexUniformComponents = 4096;
+	Resources.maxVaryingFloats = 64;
+	Resources.maxVertexTextureImageUnits = 32;
+	Resources.maxCombinedTextureImageUnits = 80;
+	Resources.maxTextureImageUnits = 32;
+	Resources.maxFragmentUniformComponents = 4096;
+	Resources.maxDrawBuffers = 32;
+	Resources.maxVertexUniformVectors = 128;
+	Resources.maxVaryingVectors = 8;
+	Resources.maxFragmentUniformVectors = 16;
+	Resources.maxVertexOutputVectors = 16;
+	Resources.maxFragmentInputVectors = 15;
+	Resources.minProgramTexelOffset = -8;
+	Resources.maxProgramTexelOffset = 7;
+	Resources.maxClipDistances = 8;
+	Resources.maxComputeWorkGroupCountX = 65535;
+	Resources.maxComputeWorkGroupCountY = 65535;
+	Resources.maxComputeWorkGroupCountZ = 65535;
+	Resources.maxComputeWorkGroupSizeX = 1024;
+	Resources.maxComputeWorkGroupSizeY = 1024;
+	Resources.maxComputeWorkGroupSizeZ = 64;
+	Resources.maxComputeUniformComponents = 1024;
+	Resources.maxComputeTextureImageUnits = 16;
+	Resources.maxComputeImageUniforms = 8;
+	Resources.maxComputeAtomicCounters = 8;
+	Resources.maxComputeAtomicCounterBuffers = 1;
+	Resources.maxVaryingComponents = 60;
+	Resources.maxVertexOutputComponents = 64;
+	Resources.maxGeometryInputComponents = 64;
+	Resources.maxGeometryOutputComponents = 128;
+	Resources.maxFragmentInputComponents = 128;
+	Resources.maxImageUnits = 8;
+	Resources.maxCombinedImageUnitsAndFragmentOutputs = 8;
+	Resources.maxCombinedShaderOutputResources = 8;
+	Resources.maxImageSamples = 0;
+	Resources.maxVertexImageUniforms = 0;
+	Resources.maxTessControlImageUniforms = 0;
+	Resources.maxTessEvaluationImageUniforms = 0;
+	Resources.maxGeometryImageUniforms = 0;
+	Resources.maxFragmentImageUniforms = 8;
+	Resources.maxCombinedImageUniforms = 8;
+	Resources.maxGeometryTextureImageUnits = 16;
+	Resources.maxGeometryOutputVertices = 256;
+	Resources.maxGeometryTotalOutputComponents = 1024;
+	Resources.maxGeometryUniformComponents = 1024;
+	Resources.maxGeometryVaryingComponents = 64;
+	Resources.maxTessControlInputComponents = 128;
+	Resources.maxTessControlOutputComponents = 128;
+	Resources.maxTessControlTextureImageUnits = 16;
+	Resources.maxTessControlUniformComponents = 1024;
+	Resources.maxTessControlTotalOutputComponents = 4096;
+	Resources.maxTessEvaluationInputComponents = 128;
+	Resources.maxTessEvaluationOutputComponents = 128;
+	Resources.maxTessEvaluationTextureImageUnits = 16;
+	Resources.maxTessEvaluationUniformComponents = 1024;
+	Resources.maxTessPatchComponents = 120;
+	Resources.maxPatchVertices = 32;
+	Resources.maxTessGenLevel = 64;
+	Resources.maxViewports = 16;
+	Resources.maxVertexAtomicCounters = 0;
+	Resources.maxTessControlAtomicCounters = 0;
+	Resources.maxTessEvaluationAtomicCounters = 0;
+	Resources.maxGeometryAtomicCounters = 0;
+	Resources.maxFragmentAtomicCounters = 8;
+	Resources.maxCombinedAtomicCounters = 8;
+	Resources.maxAtomicCounterBindings = 1;
+	Resources.maxVertexAtomicCounterBuffers = 0;
+	Resources.maxTessControlAtomicCounterBuffers = 0;
+	Resources.maxTessEvaluationAtomicCounterBuffers = 0;
+	Resources.maxGeometryAtomicCounterBuffers = 0;
+	Resources.maxFragmentAtomicCounterBuffers = 1;
+	Resources.maxCombinedAtomicCounterBuffers = 1;
+	Resources.maxAtomicCounterBufferSize = 16384;
+	Resources.maxTransformFeedbackBuffers = 4;
+	Resources.maxTransformFeedbackInterleavedComponents = 64;
+	Resources.maxCullDistances = 8;
+	Resources.maxCombinedClipAndCullDistances = 8;
+	Resources.maxSamples = 4;
+	Resources.limits.nonInductiveForLoops = 1;
+	Resources.limits.whileLoops = 1;
+	Resources.limits.doWhileLoops = 1;
+	Resources.limits.generalUniformIndexing = 1;
+	Resources.limits.generalAttributeMatrixVectorIndexing = 1;
+	Resources.limits.generalVaryingIndexing = 1;
+	Resources.limits.generalSamplerIndexing = 1;
+	Resources.limits.generalVariableIndexing = 1;
+	Resources.limits.generalConstantMatrixVectorIndexing = 1;
+}
+
+void HelloTriangleApplication::createDescriptorPool(bool useTexture) {
+	// Depends on createUniformBuffer() and createDescriptorPipelineLayout()
+	vk::DescriptorPoolSize typeCount[2];
+	typeCount[0]
+		.setType(vk::DescriptorType::eUniformBuffer)
+		.setDescriptorCount(1);
+	if (useTexture) {
+		typeCount[1]
+			.setType(vk::DescriptorType::eCombinedImageSampler)
+			.setDescriptorCount(1);
+	}
+
+	vk::DescriptorPoolCreateInfo descirptorPool = vk::DescriptorPoolCreateInfo()
+		.setMaxSets(1)
+		.setPoolSizeCount(useTexture ? 2 : 1)
+		.setPPoolSizes(typeCount);
+
+	descPool = device.createDescriptorPool(descirptorPool);
+}
+
+void HelloTriangleApplication::createDescriptorSet(bool useTexture) {
+	vk::DescriptorSetAllocateInfo allocInfo = vk::DescriptorSetAllocateInfo()
+		.setDescriptorPool(descPool)
+		.setDescriptorSetCount(1)
+		.setPSetLayouts(descLayout.data());
+
+	//descSet.resize(1);
+	descSet = device.allocateDescriptorSets(allocInfo);
+	//descSet.push_back(device.allocateDescriptorSets(allocInfo));
+	//device.allocateDescriptorSets(allocInfo, descSet.data());
+
+	vk::WriteDescriptorSet writes[2];
+	writes[0]
+		.setDstSet(descSet[0])
+		.setDescriptorCount(1)
+		.setDescriptorType(vk::DescriptorType::eUniformBuffer)
+		.setPBufferInfo(&uniform_data.buffer_info)
+		.setDstArrayElement(0)
+		.setDstBinding(0);
+
+	if (useTexture) {
+		writes[1]
+			.setDstSet(descSet[0])
+			.setDstBinding(1)
+			.setDescriptorCount(1)
+			.setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+			//.setPImageInfo(texture_data.image_info)
+			.setDstArrayElement(0);
+	}
+
+	device.updateDescriptorSets(useTexture ? 2 : 1, writes, 0, nullptr);
+
+
 	
 }
 
-//deviceExtensions.push_back("VK_KHR_sqapchain")
+void HelloTriangleApplication::destroyInstance() {
+	
+}

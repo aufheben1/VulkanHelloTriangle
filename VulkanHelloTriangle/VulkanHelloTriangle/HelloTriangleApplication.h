@@ -17,6 +17,7 @@
 
 #include <iostream>
 #include <vector>
+#include <SPIRV\GlslangToSpv.h>
 
 class HelloTriangleApplication {
 private:
@@ -25,10 +26,29 @@ private:
 	* spot
 	*/
 	typedef struct _swap_chain_buffers {
-		VkImage image;
-		VkImageView view;
+		vk::Image image;
+		vk::ImageView view;
 	} swap_chain_buffer;
 
+	struct {
+		vk::Format format;
+
+		vk::Image image;
+		vk::DeviceMemory mem;
+		vk::ImageView view;
+	} depth;
+
+	struct {
+		vk::Buffer buf;
+		vk::DeviceMemory mem;
+		vk::DescriptorBufferInfo buffer_info;
+	} uniform_data;
+
+	glm::mat4 Projection;
+	glm::mat4 View;
+	glm::mat4 Model;
+	glm::mat4 Clip;
+	glm::mat4 MVP;
 
 public:
 	HelloTriangleApplication();
@@ -48,13 +68,33 @@ private:
 	void selectPhysicalDevice();
 	bool isDeviceSuitable(vk::PhysicalDevice device);
 	void createLogicalDevice();
+	
 	void createCommandPool();
 	void createCommandBuffer();
+	void beginCommandBuffer();
+	void createDeviceQueue();
 	void createSwapchain();
 	void initSwapchainExtension();
 	void createImageviews();
 		
+	void createDepthBuffer();
+	uint32_t getMemoryTypeFromProperties(uint32_t typeBits, vk::MemoryPropertyFlags reqMask);
+	
+	void createUniformBuffer();
+	void createDescriptorPipelineLayouts(bool useTexture);
+	
+	void createShaders(const char *vertShaderText, const char *fragShaderText);
+	bool GLSLtoSPV(const vk::ShaderStageFlagBits shaderType, const char *pshader, std::vector<unsigned int> &spirv);
+	EShLanguage FindLanguage(const vk::ShaderStageFlagBits shaderType);
+	void init_resources(TBuiltInResource &Resources);
+	
+	
+	void createDescriptorPool(bool useTexture);
+	void createDescriptorSet(bool useTexture);
+
 	void destroyInstance();
+
+
 
 public:
 
@@ -80,6 +120,9 @@ private:
 	vk::DeviceQueueCreateInfo queueInfo;
 	uint32_t graphicsFamilyIndex;
 	uint32_t presentFamilyIndex;
+	vk::Queue graphicsQueue;
+	vk::Queue presentQueue;
+
 	vk::DeviceCreateInfo deviceInfo;
 	vk::Device device;
 
@@ -87,6 +130,7 @@ private:
 	vk::CommandPool cmdPool;
 	vk::CommandBufferAllocateInfo cmdInfo;
 	std::vector<vk::CommandBuffer> cmd;
+	vk::CommandBufferBeginInfo cmdBufInfo;
 
 	vk::SwapchainKHR swapchain;
 	vk::SwapchainCreateInfoKHR swapchainCreateInfo;
@@ -96,6 +140,16 @@ private:
 	std::vector<vk::Image> swapchainImages;
 	std::vector<swap_chain_buffer> buffers;
 	uint32_t current_buffer;
+
+	std::vector<vk::DescriptorSetLayout> descLayout;
+	//vk::DescriptorSetLayout descLayout;
+	vk::PipelineLayout pipelineLayout;
+
+	vk::PipelineShaderStageCreateInfo shaderStages[2];
+
+	vk::DescriptorPool descPool;
+	std::vector<vk::DescriptorSet> descSet;
+	
 };
 
 
