@@ -108,6 +108,9 @@ private:
 	void createPipeline(vk::Bool32 include_depth, vk::Bool32 include_vi = true);
 
 	void recordCommands();
+	void initViewports();
+	void initScissors();
+
 
 	void destroyInstance();
 
@@ -172,6 +175,9 @@ private:
 
 	vk::PipelineCache pipelineCache;
 	vk::Pipeline pipeline;
+
+	vk::Viewport viewport;
+	vk::Rect2D scissor;
 };
 
 

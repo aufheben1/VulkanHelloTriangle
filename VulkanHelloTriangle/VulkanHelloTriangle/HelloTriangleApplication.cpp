@@ -1193,7 +1193,7 @@ void HelloTriangleApplication::createPipeline(vk::Bool32 include_depth, vk::Bool
 		.setBlendConstants(constants);
 
 	vk::PipelineViewportStateCreateInfo vp = vk::PipelineViewportStateCreateInfo()
-#ifndef __ANDROID
+#ifndef __ANDROID__
 		.setViewportCount(1)
 		.setScissorCount(1)
 		.setPScissors(nullptr)
@@ -1289,8 +1289,98 @@ void HelloTriangleApplication::recordCommands() {
 	vk::Semaphore imageAcquiredSemaphore = device.createSemaphore(imageAcquiredSemaphoreCreateInfo);
 
 	// Get the index of the next available swapchain image:
-	current_buffer = device.acquireNextImageKHR(swapchain, UINT64_MAX, imageAcquiredSemaphore, nullptr);
+	current_buffer = device.acquireNextImageKHR(swapchain, UINT64_MAX, imageAcquiredSemaphore, nullptr).value;
+	// resultvalue를 받아오는 과정에서 버그?가 있는듯?
 
+	vk::RenderPassBeginInfo rp_begin = vk::RenderPassBeginInfo()
+		.setRenderPass(renderPass)
+		.setFramebuffer(framebuffers[current_buffer])
+		.setClearValueCount(2)
+		.setPClearValues(clear_values);
+	rp_begin.renderArea.offset.setX(0).setY(0);
+	rp_begin.renderArea.extent.setHeight(width).setWidth(width);
+
+	cmd[0].beginRenderPass(rp_begin, vk::SubpassContents::eInline);
+
+	cmd[0].bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+	cmd[0].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, (uint32_t)0, descSet, (uint32_t)0);
+	
+	const vk::DeviceSize offsets[1] = { 0 };
+	cmd[0].bindVertexBuffers(0, 1, &vertex_buffer.buf, offsets);
+
+	initViewports();
+	initScissors();
+
+	cmd[0].draw(12 * 3, 1, 0, 0);
+	cmd[0].endRenderPass();
+	cmd[0].end();
+
+	const vk::CommandBuffer cmd_bufs[] = { cmd[0] };
+	vk::FenceCreateInfo fenceInfo;
+	
+	vk::Fence drawFence = device.createFence(fenceInfo);
+
+	vk::PipelineStageFlags pipeStageFlags = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+	vk::SubmitInfo submitInfo[1];
+	submitInfo[0]
+		.setWaitSemaphoreCount(1)
+		.setPWaitSemaphores(&imageAcquiredSemaphore)
+		.setPWaitDstStageMask(&pipeStageFlags)
+		.setCommandBufferCount(1)
+		.setPCommandBuffers(cmd_bufs)
+		.setSignalSemaphoreCount(0)
+		.setPSignalSemaphores(nullptr);
+
+	// queue the commandbuffer for excution
+	graphicsQueue.submit(1, submitInfo, drawFence);
+
+	// now present the image in the window
+	vk::PresentInfoKHR present = vk::PresentInfoKHR()
+		.setSwapchainCount(1)
+		.setPSwapchains(&swapchain)
+		.setPImageIndices(&current_buffer)
+		.setPWaitSemaphores(nullptr)
+		.setWaitSemaphoreCount(0)
+		.setPResults(nullptr);
+	
+	vk::Result res;
+	do {
+		res = device.waitForFences(1, &drawFence, VK_TRUE, 100000000);
+	} while (res == vk::Result::eTimeout);
+
+	presentQueue.presentKHR(present);
+
+	// wait for a second
+	Sleep(1000);
+
+}
+
+void HelloTriangleApplication::initViewports() {
+#ifdef __ANDROID__
+	// Disable dynamic viewport on Android. Some drive has an issue with the dynamic viewport
+	// feature.
+#else
+	viewport
+		.setHeight((float)height)
+		.setWidth((float)width)
+		.setMinDepth(0.0f)
+		.setMaxDepth(0.0f)
+		.setX(0)
+		.setY(0);
+
+	cmd[0].setViewport(0, 1, &viewport);
+#endif
+}
+
+void HelloTriangleApplication::initScissors() {
+#ifdef __ANDROID__
+	// Disable dynamic viewport on Android. Some drive has an issue with the dynamic scissors
+	// feature.
+#else
+	scissor.extent.setWidth(width).setHeight(height);
+	scissor.offset.setX(0).setY(0);
+	cmd[0].setScissor(0, 1, &scissor);
+#endif
 }
 
 void HelloTriangleApplication::destroyInstance() {
