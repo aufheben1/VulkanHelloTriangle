@@ -3,6 +3,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <SPIRV\GlslangToSpv.h>
 
+#include "cube_data.h"
 /* For this sample, we'll start with GLSL so the shader function is plain */
 /* and then use the glslang GLSLtoSPV utility to convert it to SPIR-V for */
 /* the driver.  We do this for clarity rather than using pre-compiled     */
@@ -75,20 +76,22 @@ void HelloTriangleApplication::initVulkan() {
 	createSwapchain();
 	createImageviews();
 
-	//createDepthBuffer();
+	//createDepthBuffer();	//에러가 나는데 왜 나는지는 잘..
 	createUniformBuffer();
 	createDescriptorPipelineLayouts(false);
-	//createRenderpass();
-	// 쉐이더 코드 넣어줘야함
+	const bool depthPresent = true;
+	createRenderpass(depthPresent);
 	createShaders(vertShaderText, fragShaderText);
 
-	//create_framebuffers();
-	//create_vertex_buffer();
+	createFramebuffers(depthPresent);
+	createVertexBuffer(g_vb_solid_face_colors_Data, sizeof(g_vb_solid_face_colors_Data),
+						sizeof(g_vb_solid_face_colors_Data[0]), false);
 	createDescriptorPool(false);
 	createDescriptorSet(false);
-	//create_pipeline_cache();
-	//create_pipeline();
+	createPipelineCache();
+	createPipeline(depthPresent);
 
+	recordCommands();
 }
 
 void HelloTriangleApplication::mainLoop() {
@@ -999,6 +1002,295 @@ void HelloTriangleApplication::createDescriptorSet(bool useTexture) {
 
 
 	
+}
+
+void HelloTriangleApplication::createRenderpass(bool include_depth, bool clear, vk::ImageLayout finalLayout) {
+	// Depends on initSwapchain and initDepthbuffer
+	vk::AttachmentDescription attachments[2];
+	attachments[0]
+		.setFormat(format)
+		.setSamples(vk::SampleCountFlagBits::e1)
+		.setLoadOp(clear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eDontCare)
+		.setStoreOp(vk::AttachmentStoreOp::eStore)
+		.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
+		.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
+		.setInitialLayout(vk::ImageLayout::eUndefined)
+		.setFinalLayout(finalLayout);
+
+	if (include_depth) {
+		attachments[1]
+			.setFormat(format)
+			.setSamples(vk::SampleCountFlagBits::e1)
+			.setLoadOp(clear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eDontCare)
+			.setStoreOp(vk::AttachmentStoreOp::eStore)
+			.setStencilLoadOp(vk::AttachmentLoadOp::eLoad)
+			.setStencilStoreOp(vk::AttachmentStoreOp::eStore)
+			.setInitialLayout(vk::ImageLayout::eUndefined)
+			.setFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
+	}
+
+	vk::AttachmentReference colorReference = vk::AttachmentReference()
+		.setAttachment(0)
+		.setLayout(vk::ImageLayout::eColorAttachmentOptimal);
+
+	vk::AttachmentReference depthReference = vk::AttachmentReference()
+		.setAttachment(1)
+		.setLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
+
+	vk::SubpassDescription subpass = vk::SubpassDescription()
+		.setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
+		.setInputAttachmentCount(0)
+		.setPInputAttachments(nullptr)
+		.setColorAttachmentCount(1)
+		.setPColorAttachments(&colorReference)
+		.setPResolveAttachments(nullptr)
+		.setPDepthStencilAttachment(include_depth ? &depthReference : nullptr)
+		.setPreserveAttachmentCount(0)
+		.setPPreserveAttachments(nullptr);
+
+	vk::RenderPassCreateInfo rpInfo = vk::RenderPassCreateInfo()
+		.setAttachmentCount(include_depth ? 2 : 1)
+		.setPAttachments(attachments)
+		.setSubpassCount(1)
+		.setPSubpasses(&subpass)
+		.setDependencyCount(0)
+		.setPDependencies(nullptr);
+
+	renderPass = device.createRenderPass(rpInfo);
+}
+
+void HelloTriangleApplication::createFramebuffers(bool include_depth) {
+	// Depends on createDepthbuffer, createRenderpass, initSwapchainExtension
+
+	vk::ImageView attachments[2];
+	attachments[1] = depth.view;
+
+	vk::FramebufferCreateInfo fbInfo = vk::FramebufferCreateInfo()
+		.setRenderPass(renderPass)
+		.setAttachmentCount(include_depth ? 2 : 1)
+		.setPAttachments(attachments)
+		.setWidth(width)
+		.setHeight(height)
+		.setLayers(1);
+
+	uint32_t i;
+
+	for (uint32_t i = 0; i < swapchainImages.size(); i++) {
+		attachments[0] = buffers[i].view;
+		framebuffers.push_back(device.createFramebuffer(fbInfo));
+	}
+}
+
+void HelloTriangleApplication::createVertexBuffer(const void* vertexData, uint32_t dataSize, uint32_t dataStride, bool useTexture) {
+	vk::BufferCreateInfo bufInfo = vk::BufferCreateInfo()
+		.setUsage(vk::BufferUsageFlagBits::eVertexBuffer)
+		.setSize(dataSize)
+		.setQueueFamilyIndexCount(0)
+		.setPQueueFamilyIndices(nullptr)
+		.setSharingMode(vk::SharingMode::eExclusive);
+
+	vertex_buffer.buf = device.createBuffer(bufInfo);
+
+	vk::MemoryRequirements memReqs = device.getBufferMemoryRequirements(vertex_buffer.buf);
+
+	vk::MemoryAllocateInfo allocInfo = vk::MemoryAllocateInfo()
+		.setMemoryTypeIndex(0)
+		.setAllocationSize(memReqs.size)
+		.setMemoryTypeIndex(getMemoryTypeFromProperties(memReqs.memoryTypeBits,
+			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
+	
+	vertex_buffer.mem = device.allocateMemory(allocInfo);
+
+	uint8_t *pData;
+	device.mapMemory(vertex_buffer.mem, 0, memReqs.size, vk::MemoryMapFlags(), (void **)&pData);
+
+	memcpy(pData, vertexData, dataSize);
+
+	device.unmapMemory(vertex_buffer.mem);
+
+	device.bindBufferMemory(vertex_buffer.buf, vertex_buffer.mem, 0);
+
+	vi_binding
+		.setBinding(0)
+		.setInputRate(vk::VertexInputRate::eVertex)
+		.setStride(dataStride);
+
+	vi_attribs[0]
+		.setBinding(0)
+		.setLocation(0)
+		.setFormat(vk::Format::eR32G32B32A32Sfloat)
+		.setOffset(0);
+
+	vi_attribs[1]
+		.setBinding(0)
+		.setLocation(1)
+		.setFormat(useTexture ? vk::Format::eR32G32Sfloat : vk::Format::eR32G32B32A32Sfloat)
+		.setOffset(16);		//WHY 16?
+	
+}
+
+void HelloTriangleApplication::createPipelineCache() {
+	vk::PipelineCacheCreateInfo cacheInfo = vk::PipelineCacheCreateInfo()
+		.setInitialDataSize(0)
+		.setPInitialData(nullptr);
+
+	pipelineCache = device.createPipelineCache(cacheInfo);
+}
+
+void HelloTriangleApplication::createPipeline(vk::Bool32 include_depth, vk::Bool32 include_vi) {
+	//VK_DYNAMIC_STATE_RANGE_SIZE 에 대한 c++ 바인딩이 따로 없는듯, 일단 enum에서 대충 값 찾아서 넣음
+	vk::DynamicState dynamicStateEnables[9];
+	memset(dynamicStateEnables, 0, sizeof dynamicStateEnables);
+	vk::PipelineDynamicStateCreateInfo dynamicInfo = vk::PipelineDynamicStateCreateInfo()
+		.setPDynamicStates(dynamicStateEnables)
+		.setDynamicStateCount(0);
+
+	vk::PipelineVertexInputStateCreateInfo vi;
+	memset(&vi, 0, sizeof(vi));
+	if (include_vi) {
+		vi.setVertexBindingDescriptionCount(1)
+			.setPVertexBindingDescriptions(&vi_binding)
+			.setVertexAttributeDescriptionCount(2)
+			.setPVertexAttributeDescriptions(vi_attribs);
+	}
+
+	vk::PipelineInputAssemblyStateCreateInfo ia = vk::PipelineInputAssemblyStateCreateInfo()
+		.setPrimitiveRestartEnable(VK_FALSE)
+		.setTopology(vk::PrimitiveTopology::eTriangleList);
+
+	vk::PipelineRasterizationStateCreateInfo rs = vk::PipelineRasterizationStateCreateInfo()
+		.setPolygonMode(vk::PolygonMode::eFill)
+		.setCullMode(vk::CullModeFlagBits::eBack)
+		.setFrontFace(vk::FrontFace::eClockwise)
+		.setDepthClampEnable(VK_FALSE)
+		.setRasterizerDiscardEnable(VK_FALSE)
+		.setDepthBiasEnable(VK_FALSE)
+		.setDepthBiasConstantFactor(0)
+		.setDepthBiasClamp(0)
+		.setDepthBiasSlopeFactor(0)
+		.setLineWidth(1.0f);
+
+	
+
+	vk::PipelineColorBlendAttachmentState att_state[1];
+	att_state[0]
+		.setColorWriteMask(vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+			vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA)
+		.setBlendEnable(VK_FALSE)
+		.setAlphaBlendOp(vk::BlendOp::eAdd)
+		.setColorBlendOp(vk::BlendOp::eAdd)
+		.setSrcColorBlendFactor(vk::BlendFactor::eZero)
+		.setDstColorBlendFactor(vk::BlendFactor::eZero)
+		.setSrcAlphaBlendFactor(vk::BlendFactor::eZero)
+		.setDstAlphaBlendFactor(vk::BlendFactor::eZero);
+	
+	std::array<float, 4> constants = { 1.0f, 1.0f, 1.0f, 1.0f };
+	vk::PipelineColorBlendStateCreateInfo cb = vk::PipelineColorBlendStateCreateInfo()
+		.setAttachmentCount(1)
+		.setPAttachments(att_state)
+		.setLogicOpEnable(VK_FALSE)
+		.setLogicOp(vk::LogicOp::eNoOp)
+		.setBlendConstants(constants);
+
+	vk::PipelineViewportStateCreateInfo vp = vk::PipelineViewportStateCreateInfo()
+#ifndef __ANDROID
+		.setViewportCount(1)
+		.setScissorCount(1)
+		.setPScissors(nullptr)
+		.setPViewports(nullptr);
+	// 순서가 중요한지?
+	dynamicStateEnables[dynamicInfo.dynamicStateCount++] = vk::DynamicState::eViewport;
+	dynamicStateEnables[dynamicInfo.dynamicStateCount++] = vk::DynamicState::eScissor;
+#else
+		// Temporary disabling dynamic viewport on Android because some of drivers doesn't
+		// support the feature.
+		;
+	vk::Viewport viewports = vk::Viewport()
+		.setMinDepth(0.0f)
+		.setMaxDepth(1.0f)
+		.setX(0)
+		.setY(0)
+		.setWidth(width)
+		.setHeight(height);
+
+	vk::Rect2D scissor = vk::Rect2D();
+	scissor.extent
+		.setWidth(width)
+		.setHeight(height);
+	scissor.offset
+		.setX(0)
+		.setY(0);
+
+	vp.setViewportCount(1)
+		.setScissorCount(1)
+		.setPScissors(&scissor)
+		.setPViewports(&viewports);
+#endif
+
+	vk::PipelineDepthStencilStateCreateInfo ds = vk::PipelineDepthStencilStateCreateInfo()
+		.setDepthTestEnable(include_depth)
+		.setDepthWriteEnable(include_depth)
+		.setDepthCompareOp(vk::CompareOp::eLessOrEqual)
+		.setDepthBoundsTestEnable(VK_FALSE)
+		.setStencilTestEnable(VK_FALSE);
+	ds.back
+		.setFailOp(vk::StencilOp::eKeep)
+		.setPassOp(vk::StencilOp::eKeep)
+		.setCompareOp(vk::CompareOp::eAlways)
+		.setCompareMask(0)
+		.setReference(0)
+		.setDepthFailOp(vk::StencilOp::eKeep)
+		.setWriteMask(0);
+	ds.setMinDepthBounds(0)
+		.setMaxDepthBounds(0)
+		.setStencilTestEnable(VK_FALSE)
+		.setFront(ds.back);
+
+	vk::PipelineMultisampleStateCreateInfo ms = vk::PipelineMultisampleStateCreateInfo()
+		.setPSampleMask(nullptr)
+		.setRasterizationSamples(vk::SampleCountFlagBits::e1)
+		.setSampleShadingEnable(VK_FALSE)
+		.setAlphaToCoverageEnable(VK_FALSE)
+		.setAlphaToOneEnable(VK_FALSE)
+		.setMinSampleShading(0.0);
+
+	vk::GraphicsPipelineCreateInfo plInfo = vk::GraphicsPipelineCreateInfo()
+		.setLayout(pipelineLayout)
+		.setBasePipelineHandle(nullptr)
+		.setBasePipelineIndex(0)
+		.setPVertexInputState(&vi)
+		.setPInputAssemblyState(&ia)
+		.setPRasterizationState(&rs)
+		.setPColorBlendState(&cb)
+		.setPTessellationState(nullptr)
+		.setPMultisampleState(&ms)
+		.setPDynamicState(&dynamicInfo)
+		.setPViewportState(&vp)
+		.setPDepthStencilState(&ds)
+		.setPStages(shaderStages)
+		.setStageCount(2)
+		.setRenderPass(renderPass)
+		.setSubpass(0);
+
+	pipeline = device.createGraphicsPipeline(pipelineCache, plInfo);
+
+}
+
+void HelloTriangleApplication::recordCommands() {
+	vk::ClearValue clear_values[2];
+	clear_values[0].color.float32[0] = 0.2f;
+	clear_values[0].color.float32[1] = 0.2f;
+	clear_values[0].color.float32[2] = 0.2f;
+	clear_values[0].color.float32[3] = 0.2f;
+	clear_values[1].depthStencil.depth = 1.0f;
+	clear_values[1].depthStencil.stencil = 0;
+
+	vk::SemaphoreCreateInfo imageAcquiredSemaphoreCreateInfo = vk::SemaphoreCreateInfo();
+	vk::Semaphore imageAcquiredSemaphore = device.createSemaphore(imageAcquiredSemaphoreCreateInfo);
+
+	// Get the index of the next available swapchain image:
+	current_buffer = device.acquireNextImageKHR(swapchain, UINT64_MAX, imageAcquiredSemaphore, nullptr);
+
 }
 
 void HelloTriangleApplication::destroyInstance() {

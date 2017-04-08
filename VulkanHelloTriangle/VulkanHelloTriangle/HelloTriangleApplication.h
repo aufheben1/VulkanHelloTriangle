@@ -44,6 +44,14 @@ private:
 		vk::DescriptorBufferInfo buffer_info;
 	} uniform_data;
 
+	struct {
+		vk::Buffer buf;
+		vk::DeviceMemory mem;
+		vk::DescriptorBufferInfo buffer_info;
+	} vertex_buffer;
+	vk::VertexInputBindingDescription vi_binding;
+	vk::VertexInputAttributeDescription vi_attribs[2];
+
 	glm::mat4 Projection;
 	glm::mat4 View;
 	glm::mat4 Model;
@@ -91,6 +99,15 @@ private:
 	
 	void createDescriptorPool(bool useTexture);
 	void createDescriptorSet(bool useTexture);
+
+	void createRenderpass(bool include_depth, bool clear = true, vk::ImageLayout finalLayout = vk::ImageLayout::ePresentSrcKHR);
+	void createFramebuffers(bool include_depth);
+	void createVertexBuffer(const void* vertexData, uint32_t dataSize, uint32_t dataStride, bool useTexture);
+
+	void createPipelineCache();
+	void createPipeline(vk::Bool32 include_depth, vk::Bool32 include_vi = true);
+
+	void recordCommands();
 
 	void destroyInstance();
 
@@ -150,6 +167,11 @@ private:
 	vk::DescriptorPool descPool;
 	std::vector<vk::DescriptorSet> descSet;
 	
+	vk::RenderPass renderPass;
+	std::vector<vk::Framebuffer> framebuffers;
+
+	vk::PipelineCache pipelineCache;
+	vk::Pipeline pipeline;
 };
 
 
