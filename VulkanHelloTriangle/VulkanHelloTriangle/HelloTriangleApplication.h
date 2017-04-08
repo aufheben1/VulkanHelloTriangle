@@ -112,9 +112,24 @@ private:
 	void initScissors();
 
 
+	void destroySemaphore();
+	void destroyFence();
+	void destroyPipeline();
+	void destroyPiplineCache();
+	void destroyDescriptorPool();
+	void destroyVertexBuffer();
+	void destroyFrameBuffers();
+	void destroyShaders();
+	void destroyRenderPass();
+	void destroyDescriptorPiplineLayouts();
+	void destroyUniformBuffer();
+	void destroyDepthBuffer();
+	void destroySwapcahin();
+	void destroyCommnadBuffer();
+	void destroyCommandPool();
+	void destroyDevice();
+	void destroyWindow();
 	void destroyInstance();
-
-
 
 public:
 
@@ -178,6 +193,9 @@ private:
 
 	vk::Viewport viewport;
 	vk::Rect2D scissor;
+
+	vk::Semaphore imageAcquiredSemaphore;
+	vk::Fence drawFence;
 };
 
 

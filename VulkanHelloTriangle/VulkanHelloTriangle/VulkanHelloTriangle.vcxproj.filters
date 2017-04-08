@@ -26,5 +26,8 @@
     <ClInclude Include="HelloTriangleApplication.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="cube_data.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -48,13 +48,25 @@ void HelloTriangleApplication::run() {
 }
 
 void HelloTriangleApplication::terminate() {
-	//destroyInstance();
-
-	// Clean up.
-	instance.destroySurfaceKHR(surface);
-	SDL_DestroyWindow(window);
-	SDL_Quit();
-	instance.destroy();
+	destroySemaphore();
+	destroyFence();
+	destroyPipeline();
+	destroyPiplineCache();
+	destroyDescriptorPool();
+	destroyVertexBuffer();
+	destroyFrameBuffers();
+	destroyShaders();
+	destroyRenderPass();
+	destroyDescriptorPiplineLayouts();
+	destroyUniformBuffer();
+	destroyDepthBuffer();
+	destroySwapcahin();
+	destroyCommnadBuffer();
+	destroyCommandPool();
+	destroyDevice();
+	destroyWindow();
+	destroyInstance();
+	
 }
 
 void HelloTriangleApplication::initVulkan() {
@@ -76,7 +88,7 @@ void HelloTriangleApplication::initVulkan() {
 	createSwapchain();
 	createImageviews();
 
-	//createDepthBuffer();	//에러가 나는데 왜 나는지는 잘..
+	createDepthBuffer();	//에러가 나는데 왜 나는지는 잘..
 	createUniformBuffer();
 	createDescriptorPipelineLayouts(false);
 	const bool depthPresent = true;
@@ -1286,7 +1298,7 @@ void HelloTriangleApplication::recordCommands() {
 	clear_values[1].depthStencil.stencil = 0;
 
 	vk::SemaphoreCreateInfo imageAcquiredSemaphoreCreateInfo = vk::SemaphoreCreateInfo();
-	vk::Semaphore imageAcquiredSemaphore = device.createSemaphore(imageAcquiredSemaphoreCreateInfo);
+	imageAcquiredSemaphore = device.createSemaphore(imageAcquiredSemaphoreCreateInfo);
 
 	// Get the index of the next available swapchain image:
 	current_buffer = device.acquireNextImageKHR(swapchain, UINT64_MAX, imageAcquiredSemaphore, nullptr).value;
@@ -1318,7 +1330,7 @@ void HelloTriangleApplication::recordCommands() {
 	const vk::CommandBuffer cmd_bufs[] = { cmd[0] };
 	vk::FenceCreateInfo fenceInfo;
 	
-	vk::Fence drawFence = device.createFence(fenceInfo);
+	drawFence = device.createFence(fenceInfo);
 
 	vk::PipelineStageFlags pipeStageFlags = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 	vk::SubmitInfo submitInfo[1];
@@ -1383,6 +1395,89 @@ void HelloTriangleApplication::initScissors() {
 #endif
 }
 
+void HelloTriangleApplication::destroySemaphore() {
+	device.destroySemaphore(imageAcquiredSemaphore);
+}
+
+void HelloTriangleApplication::destroyFence() {
+	device.destroyFence(drawFence);
+}
+
+void HelloTriangleApplication::destroyPipeline() {
+	device.destroyPipeline(pipeline);
+}
+
+void HelloTriangleApplication::destroyPiplineCache() {
+	device.destroyPipelineCache(pipelineCache);
+}
+
+void HelloTriangleApplication::destroyDescriptorPool() {
+	device.destroyDescriptorPool(descPool);
+}
+
+void HelloTriangleApplication::destroyVertexBuffer() {
+	device.destroyBuffer(vertex_buffer.buf);
+	device.freeMemory(vertex_buffer.mem);
+}
+
+void HelloTriangleApplication::destroyFrameBuffers() {
+	for (uint32_t i = 0; i < swapchainImages.size(); i++) {
+		device.destroyFramebuffer(framebuffers[i]);
+	}
+	free(&framebuffers);
+}
+
+void HelloTriangleApplication::destroyShaders() {
+	device.destroyShaderModule(shaderStages[0].module);
+	device.destroyShaderModule(shaderStages[1].module);
+}
+
+void HelloTriangleApplication::destroyRenderPass() {
+	device.destroyRenderPass(renderPass);
+}
+
+void HelloTriangleApplication::destroyDescriptorPiplineLayouts() {
+	device.destroyDescriptorSetLayout(descLayout[0]);
+	device.destroyPipelineLayout(pipelineLayout);
+}
+
+void HelloTriangleApplication::destroyUniformBuffer() {
+	device.destroyBuffer(uniform_data.buf);
+	device.freeMemory(uniform_data.mem);
+}
+
+void HelloTriangleApplication::destroyDepthBuffer() {
+	device.destroyImageView(depth.view);
+	device.destroyImage(depth.image);
+	device.freeMemory(depth.mem);
+}
+
+void HelloTriangleApplication::destroySwapcahin() {
+	for (uint32_t i = 0; i < swapchainImages.size(); i++) {
+		device.destroyImageView(buffers[i].view);
+	}
+	device.destroySwapchainKHR(swapchain);
+}
+
+void HelloTriangleApplication::destroyCommnadBuffer() {
+	device.freeCommandBuffers(cmdPool, 1, &cmd[0]);
+}
+
+void HelloTriangleApplication::destroyCommandPool() {
+	device.destroyCommandPool(cmdPool);
+}
+
+void HelloTriangleApplication::destroyDevice() {
+	device.waitIdle();
+	device.destroy();
+}
+
+void HelloTriangleApplication::destroyWindow() {
+	instance.destroySurfaceKHR(surface);
+	SDL_DestroyWindow(window);
+	SDL_Quit();
+}
+
 void HelloTriangleApplication::destroyInstance() {
-	
+	instance.destroy();
 }
