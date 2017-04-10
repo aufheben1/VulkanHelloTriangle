@@ -37,6 +37,20 @@ static const char *fragShaderText =
 "   outColor = color;\n"
 "}\n";
 
+VKAPI_ATTR VkBool32 VKAPI_CALL MyDebugReportCallback(
+	VkDebugReportFlagsEXT       flags,
+	VkDebugReportObjectTypeEXT  objectType,
+	uint64_t                    object,
+	size_t                      location,
+	int32_t                     messageCode,
+	const char*                 pLayerPrefix,
+	const char*                 pMessage,
+	void*                       pUserData)
+{
+	std::cerr << pMessage << std::endl;
+	return VK_FALSE;
+}
+
 HelloTriangleApplication::HelloTriangleApplication() :
 	width(1280), height(720)
 {
@@ -72,6 +86,9 @@ void HelloTriangleApplication::terminate() {
 void HelloTriangleApplication::initVulkan() {
 	addInstanceExtensions();
 	createInstance();
+#if defined(_DEBUG)
+	createDebugCallback();
+#endif
 
 	addDeviceExtensions();
 	selectPhysicalDevice();
@@ -88,7 +105,7 @@ void HelloTriangleApplication::initVulkan() {
 	createSwapchain();
 	createImageviews();
 
-	createDepthBuffer();	//에러가 나는데 왜 나는지는 잘..
+	createDepthBuffer();	
 	createUniformBuffer();
 	createDescriptorPipelineLayouts(false);
 	const bool depthPresent = true;
@@ -135,6 +152,7 @@ void HelloTriangleApplication::addInstanceExtensions()
 	// Use validation layers if this is a debug build, and use WSI extensions regardless
 #if defined(_DEBUG)
 	layers.push_back("VK_LAYER_LUNARG_standard_validation");
+	instanceExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 #endif
 	instanceExtensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
 	
@@ -184,6 +202,42 @@ void HelloTriangleApplication::createInstance() {
 		std::cout << "Could not create a Vulkan instance: " << e.what() << std::endl;
 		assert(0 && "Vulkan runtime error.");
 	}
+
+
+}
+
+void HelloTriangleApplication::createDebugCallback() {
+	// debug_report entry points
+	PFN_vkCreateDebugReportCallbackEXT vkCreateDebugReportCallbackEXT =
+		reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>
+		(instance.getProcAddr("vkCreateDebugReportCallbackEXT"));
+	PFN_vkDebugReportMessageEXT vkDebugReportMessageEXT =
+		reinterpret_cast<PFN_vkDebugReportMessageEXT>
+		(instance.getProcAddr("vkDebugReportMessageEXT"));
+	PFN_vkDestroyDebugReportCallbackEXT vkDestroyDebugReportCallbackEXT =
+		reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>
+		(instance.getProcAddr("vkDestroyDebugReportCallbackEXT"));
+	
+	/*
+	vk::DebugReportCallbackCreateInfoEXT callbackCreateInfo = vk::DebugReportCallbackCreateInfoEXT()
+		.setFlags(vk::DebugReportFlagBitsEXT::eError |
+			vk::DebugReportFlagBitsEXT::eWarning |
+			vk::DebugReportFlagBitsEXT::ePerformanceWarning)
+		.setPfnCallback(MyDebugReportCallback);
+	
+	vk::DebugReportCallbackEXT callback = instance.createDebugReportCallbackEXT(callbackCreateInfo);
+	*/
+	VkDebugReportCallbackCreateInfoEXT callbackCreateInfo;
+	callbackCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT;
+	callbackCreateInfo.pNext = nullptr;
+	callbackCreateInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT |
+		VK_DEBUG_REPORT_WARNING_BIT_EXT |
+		VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
+	callbackCreateInfo.pfnCallback = &MyDebugReportCallback;
+	callbackCreateInfo.pUserData = nullptr;
+
+	VkDebugReportCallbackEXT callback;
+	VkResult result = vkCreateDebugReportCallbackEXT(instance, &callbackCreateInfo, nullptr, &callback);
 }
 
 void HelloTriangleApplication::addDeviceExtensions() {
@@ -562,8 +616,10 @@ void HelloTriangleApplication::createImageviews() {
 }
 
 void HelloTriangleApplication::createDepthBuffer() {
-	vk::ImageCreateInfo imageInfo;
-	if (depth.format <= vk::Format::eUndefined) depth.format = vk::Format::eD16Unorm;
+	vk::ImageCreateInfo imageInfo = vk::ImageCreateInfo();
+	if (depth.format <= vk::Format::eUndefined) 
+		depth.format = vk::Format::eD16Unorm;
+	//depth.format = vk::Format::eD16Unorm;
 
 #ifdef __ANDROID__
 	// Depth format needs to be VK_FORMAT_D24_UNORM_S8_UINT on Android.
@@ -597,7 +653,8 @@ void HelloTriangleApplication::createDepthBuffer() {
 		.setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment);
 	imageInfo.extent
 		.setWidth(width)
-		.setHeight(height);
+		.setHeight(height)
+		.setDepth(1);
 		
 	vk::MemoryAllocateInfo memAlloc = vk::MemoryAllocateInfo()
 		.setAllocationSize(0)
@@ -653,12 +710,12 @@ void HelloTriangleApplication::createDepthBuffer() {
 uint32_t HelloTriangleApplication::getMemoryTypeFromProperties(uint32_t typeBits, vk::MemoryPropertyFlags reqMask) {
 	// Search memtypes to find first index with those properties
 	for (uint32_t i = 0; i < gpuMemoryProps.memoryTypeCount; i++) {
-		if ((typeBits & 1) == 1) {
+		//if ((typeBits & 1) == 1) {
 			// Type is available, does it match user properties?
 			if ((gpuMemoryProps.memoryTypes[i].propertyFlags & reqMask) == reqMask) {
 				return i;
 			}
-		}
+		//}
 	}
 	std::cout << "cannot find memory supporting properties\n";
 	assert(0 && "Vulkan runtime error.");
@@ -1031,7 +1088,7 @@ void HelloTriangleApplication::createRenderpass(bool include_depth, bool clear, 
 
 	if (include_depth) {
 		attachments[1]
-			.setFormat(format)
+			.setFormat(depth.format)
 			.setSamples(vk::SampleCountFlagBits::e1)
 			.setLoadOp(clear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eDontCare)
 			.setStoreOp(vk::AttachmentStoreOp::eStore)
@@ -1159,6 +1216,7 @@ void HelloTriangleApplication::createPipeline(vk::Bool32 include_depth, vk::Bool
 
 	vk::PipelineVertexInputStateCreateInfo vi;
 	memset(&vi, 0, sizeof(vi));
+	vi = vk::PipelineVertexInputStateCreateInfo();
 	if (include_vi) {
 		vi.setVertexBindingDescriptionCount(1)
 			.setPVertexBindingDescriptions(&vi_binding)
@@ -1266,6 +1324,7 @@ void HelloTriangleApplication::createPipeline(vk::Bool32 include_depth, vk::Bool
 		.setAlphaToOneEnable(VK_FALSE)
 		.setMinSampleShading(0.0);
 
+
 	vk::GraphicsPipelineCreateInfo plInfo = vk::GraphicsPipelineCreateInfo()
 		.setLayout(pipelineLayout)
 		.setBasePipelineHandle(nullptr)
@@ -1310,12 +1369,12 @@ void HelloTriangleApplication::recordCommands() {
 		.setClearValueCount(2)
 		.setPClearValues(clear_values);
 	rp_begin.renderArea.offset.setX(0).setY(0);
-	rp_begin.renderArea.extent.setHeight(width).setWidth(width);
+	rp_begin.renderArea.extent.setHeight(height).setWidth(width);
 
 	cmd[0].beginRenderPass(rp_begin, vk::SubpassContents::eInline);
 
 	cmd[0].bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
-	cmd[0].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, (uint32_t)0, descSet, (uint32_t)0);
+	cmd[0].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, (uint32_t)0, descSet, nullptr);
 	
 	const vk::DeviceSize offsets[1] = { 0 };
 	cmd[0].bindVertexBuffers(0, 1, &vertex_buffer.buf, offsets);

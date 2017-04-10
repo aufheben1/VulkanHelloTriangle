@@ -70,6 +70,7 @@ private:
 	
 	void addInstanceExtensions();
 	void createInstance();
+	void createDebugCallback();
 
 	void addDeviceExtensions();
 	void createSurface();
