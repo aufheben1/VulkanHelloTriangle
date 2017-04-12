@@ -1483,7 +1483,7 @@ void HelloTriangleApplication::destroyFrameBuffers() {
 	for (uint32_t i = 0; i < swapchainImages.size(); i++) {
 		device.destroyFramebuffer(framebuffers[i]);
 	}
-	free(&framebuffers);
+	//free(&framebuffers);
 }
 
 void HelloTriangleApplication::destroyShaders() {
